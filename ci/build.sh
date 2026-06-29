@@ -31,7 +31,7 @@ mkdir -p artifacts
 DESTDIR="$(realpath artifacts)" cmake --install build --prefix /usr
 
 echo "Creating archive"
-tar -czf artifacts.tar.gz artifacts
+tar -czf imsdk-artifacts.tar.gz artifacts
 
 echo "archive created path: $(realpath artifacts.tar.gz)"
 echo "archive size: $(du -sh $(realpath artifacts.tar.gz))"
