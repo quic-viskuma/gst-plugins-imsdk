@@ -14,30 +14,18 @@ jobs:
   init:
     runs-on: ubuntu-latest
     outputs:
-      sdk-url: ${{ steps.sdk-url.outputs.sdk-url }}
+      sdk-url: ${{ steps.urls.outputs.sdk-url }}
+      image-urls: ${{ steps.urls.outputs.image-urls }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Resolve SDK URL from latest wrynose nightly
-        id: sdk-url
+        id: urls
         uses: ./.github/actions/resolve-nightly-download-url
         with:
           token: ${{ secrets.QUALCOMM_LINUX_PAT }}
-
-      - name: Print Build Urls
-        run: |
-          echo "Resolved SDK and image URLs from latest wrynose nightly:"
-          echo "SDK URL: ${{ steps.sdk-url.outputs.sdk-url }}"
-          echo "iq-9075-evk/proprietary: ${{ fromJson(steps.sdk-url.outputs.image-urls)['iq-9075-evk/proprietary'] }}"
-          echo "iq-9075-evk/multimedia: ${{ fromJson(steps.sdk-url.outputs.image-urls)['iq-9075-evk/multimedia'] }}"
-          echo "iq-8275-evk/proprietary: ${{ fromJson(steps.sdk-url.outputs.image-urls)['iq-8275-evk/proprietary'] }}"
-          echo "iq-8275-evk/multimedia: ${{ fromJson(steps.sdk-url.outputs.image-urls)['iq-8275-evk/multimedia'] }}"
-          echo "iq-615-evk/proprietary: ${{ fromJson(steps.sdk-url.outputs.image-urls)['iq-615-evk/proprietary'] }}"
-          echo "iq-615-evk/multimedia: ${{ fromJson(steps.sdk-url.outputs.image-urls)['iq-615-evk/multimedia'] }}"
-          echo "rb3gen2-core-kit/proprietary: ${{ fromJson(steps.sdk-url.outputs.image-urls)['rb3gen2-core-kit/proprietary'] }}"
-          echo "rb3gen2-core-kit/multimedia: ${{ fromJson(steps.sdk-url.outputs.image-urls)['rb3gen2-core-kit/multimedia'] }}"
   build:
     needs: init
     runs-on:
@@ -62,6 +50,24 @@ jobs:
         run: |
           mkdir -p upload_dir
           mv imsdk-artifacts.tar.gz upload_dir/
+
+      - name: Generate build URLs JSON
+        env:
+          IMAGE_URLS: ${{ needs.init.outputs.image-urls }}
+        run: |
+          python3 - <<'EOF'
+          import json, os
+
+          flat = json.loads(os.environ["IMAGE_URLS"])
+          nested = {}
+          for key, url in flat.items():
+              target, image_type = key.split("/", 1)
+              nested.setdefault(target, {})[image_type] = url
+
+          with open("upload_dir/build-urls.json", "w") as f:
+              json.dump(nested, f, indent=4)
+          print(json.dumps(nested, indent=4))
+          EOF
 
       - name: Upload artifacts to S3 bucket
         uses: qualcomm-linux/upload-private-artifact-action@aws-v4
